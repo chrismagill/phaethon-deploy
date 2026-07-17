@@ -1,0 +1,112 @@
+# Build a signed, air-gapped offline install bundle for a disconnected CUI enclave.
+#
+# Per DELIVERY-PLAN.md W4 / D-5, offline bundles are produced ON REQUEST (manual
+# dispatch), not automatically every release. This workflow packages, for one product:
+#   • images.tar.gz  — `docker save` of the digest-pinned images, for `docker load`
+#   • oci/<name>/     — `cosign save` OCI layouts carrying each image's signature,
+#                       for OFFLINE keyless verification (no Rekor call at verify time)
+#   • trusted_root.json — the Sigstore trust root, so the enclave needs no TUF fetch
+#   • SHA256SUMS      — over every file in the bundle
+#   • INSTALL-OFFLINE.md — the verify + load procedure
+#
+# The digests are read FROM the bundle compose files in this repo — single source of
+# truth, so an offline bundle can never drift from the online bundle.
+#
+# Trigger: Actions → offline-bundle → Run workflow → pick product + platform.
+
+name: offline-bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: 'Which product bundle'
+        required: true
+        type: choice
+        options: [attestor, ordinance]
+      platform:
+        description: 'Target CPU architecture of the enclave'
+        required: true
+        default: linux/amd64
+        type: choice
+        options: [linux/amd64, linux/arm64]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Log in to GHCR (public images, but avoids anonymous rate limits)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Collect the digest-pinned image refs from the bundle compose
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMPOSE="bundles/${{ inputs.product }}/docker-compose.yml"
+          # Every image the customer actually runs, exactly as pinned in the shipped bundle.
+          grep -oE 'ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}' "$COMPOSE" | sort -u > refs.txt
+          echo "Images to package:"; cat refs.txt
+          test -s refs.txt  # fail closed if the compose had no pinned digests
+
+      - name: Fetch the Sigstore trust root (needed for offline verify)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign initialize
+          mkdir -p out
+          cp ~/.sigstore/root/targets/trusted_root.json out/trusted_root.json
+
+      - name: Save images (docker save) + signatures (cosign save)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/oci
+          IMAGES=()
+          while read -r REF; do
+            [ -z "$REF" ] && continue
+            NAME="$(echo "$REF" | sed -E 's#.*/([^@]+)@.*#\1#')"   # e.g. attestor-api
+            echo "::group::$NAME"
+            docker pull --platform '${{ inputs.platform }}' "$REF"
+            # OCI layout WITH signatures, for offline keyless verification:
+            cosign save "$REF" --dir "out/oci/$NAME"
+            IMAGES+=("$REF")
+            echo "::endgroup::"
+          done < refs.txt
+          # One tarball for `docker load` (running the stack offline):
+          docker save "${IMAGES[@]}" | gzip > out/images.tar.gz
+
+      - name: Copy the compose bundle + verification doc into the offline package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -r "bundles/${{ inputs.product }}" out/bundle
+          cp VERIFY.md out/VERIFY.md
+          cp offline/INSTALL-OFFLINE.md out/INSTALL-OFFLINE.md
+
+      - name: Checksums over everything
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd out
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          echo "----- offline package -----"; find . -type f | sort; echo; cat SHA256SUMS
+
+      - name: Upload as a workflow artifact (deliver on request; do not auto-publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ inputs.product }}-${{ inputs.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: out/
+          retention-days: 14

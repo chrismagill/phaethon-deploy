@@ -1,0 +1,80 @@
+# Package the customer install bundles and publish them as GitHub Release assets.
+#
+# This repo holds NO source and NO images — only the compose files, .env examples,
+# and INSTALL docs a customer needs to run the (public, signed) GHCR images. That is
+# why it can be public: the private-repo blocker that once forced the bundle onto the
+# Lovable site does not apply to the bundle itself.
+#
+# Trigger:
+#   • push a tag:  git tag deploy-2026.07.17 && git push origin deploy-2026.07.17
+#   • or manually: Actions → release → Run workflow
+#
+# Each run zips bundles/attestor and bundles/ordinance, writes SHA256SUMS over the
+# zips, and attaches all three files to a GitHub Release for the tag. The zips are the
+# same content the site links to (see W3 in DELIVERY-PLAN.md).
+
+name: release
+
+on:
+  push:
+    tags: ['deploy-*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # create releases + upload assets
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            T="deploy-manual-${GITHUB_SHA::7}"
+          else
+            T="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+
+      - name: Build bundle zips (deterministic)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # -X strips extra fields, -r recurse; sort for stable ordering so the zip
+          # is reproducible run-to-run given identical inputs.
+          ( cd bundles/attestor  && find . -type f | sort | zip -X -@ "$GITHUB_WORKSPACE/dist/attestor-trial.zip" )
+          ( cd bundles/ordinance && find . -type f | sort | zip -X -@ "$GITHUB_WORKSPACE/dist/ordinance-trial.zip" )
+          cd dist
+          sha256sum attestor-trial.zip ordinance-trial.zip | tee SHA256SUMS
+          echo "----- packaged -----"
+          ls -l
+
+      - name: Publish Release with bundle assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Phaethon install bundles — ${{ steps.tag.outputs.tag }}"
+          body: |
+            Customer install bundles (compose + `.env.example` + INSTALL docs).
+
+            **These bundles contain no source and no images.** They pull the public,
+            **signed** Phaethon images from GHCR, pinned by `@sha256:` digest. Verify
+            every image before you run it — see `VERIFY.md` in this repo.
+
+            | Asset | What it is |
+            |---|---|
+            | `attestor-trial.zip` | Attestor 3-container stack, digest-pinned to the current signed release |
+            | `ordinance-trial.zip` | Ordinance single-container stack, digest-pinned to the current signed release |
+            | `SHA256SUMS` | SHA-256 of each zip — check it after download |
+
+            For air-gapped / disconnected enclaves, see the `offline-*` assets produced
+            by the `offline-bundle` workflow (contact info@phaethonsecurity.com).
+          files: |
+            dist/attestor-trial.zip
+            dist/ordinance-trial.zip
+            dist/SHA256SUMS

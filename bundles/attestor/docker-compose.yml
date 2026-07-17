@@ -1,0 +1,109 @@
+# =============================================================
+# Attestor — Customer On-Premise Deployment (prebuilt images)
+# =============================================================
+# Pulls PREBUILT images from GitHub Container Registry — nothing to build.
+# Only the `web` UI publishes a host port; `api` and `postgres` sit on an
+# internal-only network and are never reachable from the host.
+#
+# You need:
+#   1. Docker Desktop for Mac (running)
+#   2. A completed .env file (copy from .env.example, generate secrets)
+#   3. Your Attestor LICENSE_KEY (from Phaethon Security)
+#
+# Then:  docker compose up -d
+# UI:    http://localhost:8080
+#
+# Swap `chrismagill` for your registry namespace if you publish elsewhere.
+# TLS: for production, put a reverse proxy (Caddy/nginx/Cloudflare) with a real
+# certificate in front of :8080. Evaluation runs over plain HTTP on loopback.
+# =============================================================
+
+name: attestor
+
+services:
+  # PostgreSQL with Attestor's schema + tenant-isolation roles baked in.
+  postgres:
+    # Pinned by DIGEST, not tag — tags are mutable; a digest is not.
+    #   attestor-postgres 1.1.3 — SIGNED
+    image: ghcr.io/chrismagill/attestor-postgres@sha256:bcad87b8e13e35235318574bc939c9f7427e953e0203ed8f1daf6b49e396c8eb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    security_opt: ["no-new-privileges:true"]
+
+  # Attestor API — internal network only; reached solely through `web`.
+  api:
+    # Pinned by DIGEST, not tag.
+    #   attestor-api 1.1.3 — SIGNED
+    image: ghcr.io/chrismagill/attestor-api@sha256:f95b4876f1c7c66a5db781cdd606d63b47f2fe1391378cd2df283f3eecd869f4
+    restart: unless-stopped
+    environment:
+      ATTESTOR_STORAGE_BACKEND: postgres
+      ATTESTOR_DATA_DIR: /data/attestor
+      DATABASE_URL: postgresql://attestor_app:${APP_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
+      # Currently required by the API's config gate even though the API connects
+      # as attestor_app. (Superuser password; used only for DB init.)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      EVIDENCE_SIGNING_KEY: ${EVIDENCE_SIGNING_KEY:?}
+      LICENSE_KEY: ${LICENSE_KEY:?paste the license key from your Phaethon Security email}
+      LICENSE_GRACE_PERIOD_DAYS: ${LICENSE_GRACE_PERIOD_DAYS:-14}
+      # Lets you create the first admin + load the CMMC/800-171 controls from the
+      # browser (no CLI). One-shot: inert once an admin exists. Set to false for a
+      # production deployment and bootstrap the admin with scripts/create-user.js.
+      ATTESTOR_SETUP_ENABLED: ${ATTESTOR_SETUP_ENABLED:-true}
+      NODE_ENV: production
+    volumes:
+      - attestor-data:/data/attestor
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Web UI — the only service exposed to the host. Serves the SPA and proxies
+  # /api/* to the API over the internal network.
+  web:
+    # Pinned by DIGEST, not tag.
+    #   attestor-web 1.1.3 — SIGNED
+    image: ghcr.io/chrismagill/attestor-web@sha256:66899ab5a84383263ee72960b0e404ffb112f1ed9a3a0d72ac56d646c2b075f7
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks: [frontend, backend]
+    depends_on:
+      api:
+        condition: service_started
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  frontend:
+    driver: bridge
+    name: attestor_frontend
+  backend:
+    driver: bridge
+    internal: true      # no route to host or internet
+    name: attestor_backend
+
+volumes:
+  pgdata:
+  attestor-data:

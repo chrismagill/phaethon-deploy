@@ -1,0 +1,68 @@
+# =============================================================
+# Ordinance — Evaluation Deployment (keyless trial)
+# =============================================================
+# Pulls a prebuilt image from GitHub Container Registry. The reference policy
+# bundle and the web console are baked into the image — nothing to build, and
+# for evaluation, NO license key is required.
+#
+# You need:
+#   1. Docker Desktop (running) — Mac or Windows
+#
+# Then:  docker compose up -d
+# Console:  http://localhost:8088/
+# Health:   curl http://localhost:8088/health
+#
+# NOTE on the port: Ordinance publishes on host port 8088 by default so it does
+# NOT collide with Attestor (8080/8443) if you run both. Change
+# ORDINANCE_HOST_PORT in .env to use a different port.
+#
+# For PRODUCTION: remove ORDINANCE_EVAL and set a real LICENSE_KEY (see
+# .env.example). Evaluation mode self-issues a short-lived local license and
+# prints an "EVALUATION MODE" banner — it is not for production use.
+# =============================================================
+
+name: ordinance
+
+services:
+  ordinance:
+    # Pinned by DIGEST, not by tag. Tags are mutable — a tag can be repointed at a
+    # different image, so a tag cannot tell you months later what you actually ran.
+    # This digest is Ordinance 3.3.0 and can never mean anything else.
+    #
+    # SIGNED (cosign, keyless via GitHub Actions OIDC). Verify before you run it:
+    #   cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
+    #     --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
+    #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+    container_name: phaethon-ordinance
+    restart: unless-stopped
+    ports:
+      - "${ORDINANCE_HOST_PORT:-8088}:8080"
+    environment:
+      # Terms of Use acknowledgment — REQUIRED, fail-closed. Ordinance will not
+      # start without it. Review the terms at legal/terms_of_use.md in the image
+      # (also served at GET /terms once running), then set this to 1 in .env.
+      # This is a deliberate acknowledgment by you, the operator — we do not
+      # pre-accept it on your behalf. The accepted version is recorded in the
+      # boot log.
+      ORDINANCE_ACCEPT_TERMS: ${ORDINANCE_ACCEPT_TERMS:?you must accept the Ordinance Terms of Use — review GET /terms or legal/terms_of_use.md, then set ORDINANCE_ACCEPT_TERMS=1 in .env}
+      # Keyless evaluation: self-issues a short-lived license at startup so the
+      # trial runs with no key to obtain. For production, delete this line and
+      # set LICENSE_KEY below.
+      ORDINANCE_EVAL: ${ORDINANCE_EVAL:-1}
+      LICENSE_KEY: ${LICENSE_KEY:-}
+      # Shared secret: sign in to the console with it, and send it as the
+      # X-Api-Key header from your callers. Change it for anything beyond a
+      # local trial (set ORDINANCE_API_KEY in .env).
+      ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:-ordinance-trial-key}
+      ORDINANCE_DEFAULT_DECISION: ${ORDINANCE_DEFAULT_DECISION:-escalate}
+    volumes:
+      - ordinance-data:/data
+      # To use your OWN policy bundles instead of the built-in reference set,
+      # uncomment the next line and drop *.yaml files in a ./policies folder
+      # next to this file:
+      # - ./policies:/srv/policies:ro
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  ordinance-data:
