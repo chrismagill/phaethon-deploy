@@ -24,8 +24,8 @@ services:
   # PostgreSQL with Attestor's schema + tenant-isolation roles baked in.
   postgres:
     # Pinned by DIGEST, not tag — tags are mutable; a digest is not.
-    #   attestor-postgres 1.1.3 — SIGNED
-    image: ghcr.io/chrismagill/attestor-postgres@sha256:bcad87b8e13e35235318574bc939c9f7427e953e0203ed8f1daf6b49e396c8eb
+    #   attestor-postgres 1.2.0 — SIGNED
+    image: ghcr.io/chrismagill/attestor-postgres@sha256:aa1f2efa0392189e1f498d9bd28ef64966530ba9f336e73e429ef9858a24459f
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
@@ -45,8 +45,8 @@ services:
   # Attestor API — internal network only; reached solely through `web`.
   api:
     # Pinned by DIGEST, not tag.
-    #   attestor-api 1.1.3 — SIGNED
-    image: ghcr.io/chrismagill/attestor-api@sha256:f95b4876f1c7c66a5db781cdd606d63b47f2fe1391378cd2df283f3eecd869f4
+    #   attestor-api 1.2.0 — SIGNED
+    image: ghcr.io/chrismagill/attestor-api@sha256:df69903ef1b70df69205cc6d6e9371296c438bbed496edfbdb98f656eb53bf2d
     restart: unless-stopped
     environment:
       ATTESTOR_STORAGE_BACKEND: postgres
@@ -84,8 +84,8 @@ services:
   # /api/* to the API over the internal network.
   web:
     # Pinned by DIGEST, not tag.
-    #   attestor-web 1.1.3 — SIGNED
-    image: ghcr.io/chrismagill/attestor-web@sha256:66899ab5a84383263ee72960b0e404ffb112f1ed9a3a0d72ac56d646c2b075f7
+    #   attestor-web 1.2.0 — SIGNED
+    image: ghcr.io/chrismagill/attestor-web@sha256:847bf170ceab1baf9af4865558e9de48524699101ae091c115a8c5dc882d5182
     restart: unless-stopped
     ports:
       - "8080:8080"
