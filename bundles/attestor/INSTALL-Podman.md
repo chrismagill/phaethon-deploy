@@ -75,9 +75,15 @@ podman generate systemd --new --files --name attestor_web   # repeat per contain
 mkdir -p ~/.config/systemd/user && mv container-*.service ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now container-attestor_web
 ```
-For production, prefer **Quadlet** `.container`/`.pod` units, or `podman kube play`
-with a Pod spec that sets `securityContext` (seccomp/SELinux/`readOnlyRootFilesystem`)
-explicitly.
+For production, prefer **Quadlet** `.container`/`.pod` units, or the
+`podman kube play` Pod spec in this folder — **`attestor.kube.yaml`** — which
+declares an explicit `securityContext` per container (seccomp RuntimeDefault,
+non-root, no privilege escalation, dropped caps) and keeps `api`/`postgres` off
+any hostPort so only `web` is host-reachable:
+```bash
+podman kube play attestor.kube.yaml     # up
+podman kube down attestor.kube.yaml     # down
+```
 
 ## Notes
 

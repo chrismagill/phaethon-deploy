@@ -1,0 +1,125 @@
+# Attestor — rootless `podman kube play` deployment (SELinux-friendly, hardened)
+# ------------------------------------------------------------------------------
+# Run:    podman kube play attestor.kube.yaml
+# Stop:   podman kube down attestor.kube.yaml
+# Console http://localhost:8080/
+#
+# All three containers share the Pod network namespace, so they reach each other
+# on 127.0.0.1 — that is why DATABASE_URL and ATTESTOR_API_URL below use
+# 127.0.0.1 rather than the Compose service names (`postgres`, `api`). Only
+# `web` publishes a hostPort; `api` and `postgres` have NO hostPort and are
+# therefore unreachable from the host, reproducing the Compose `internal`
+# backend-network isolation.
+#
+# FRESH DB for the Evidence Hub (v1.2.0+): init.sql runs only on an EMPTY data
+# volume. If you ran an older Attestor here, remove the old volume first:
+#   podman kube down attestor.kube.yaml ; podman volume rm attestor-pgdata
+#
+# SECRETS: replace every REPLACE_* value (keep the two APP_DB_PASSWORD copies in
+# sync), or externalize them to a Kubernetes Secret (secretKeyRef) /
+# `podman kube play --configmap`. Do NOT commit real secrets.
+#
+# VALIDATE ONCE in your RHEL environment. `api` will restart until `postgres` is
+# ready (Pod restartPolicy: Always) — expected on first boot. `runAsNonRoot` on
+# api/web relies on the images' non-root USER; if a runtime rejects it because
+# USER is set by name, set runAsUser to the image's uid or drop the line (the
+# image still runs non-root).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attestor
+  labels:
+    app: attestor
+spec:
+  restartPolicy: Always
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    # ── PostgreSQL — no hostPort → not reachable from the host ──
+    - name: postgres
+      image: ghcr.io/chrismagill/attestor-postgres@sha256:aa1f2efa0392189e1f498d9bd28ef64966530ba9f336e73e429ef9858a24459f
+      env:
+        - name: POSTGRES_USER
+          value: "attestor"
+        - name: POSTGRES_DB
+          value: "attestor"
+        - name: POSTGRES_PASSWORD
+          value: "REPLACE_POSTGRES_PASSWORD"
+        - name: APP_DB_PASSWORD
+          value: "REPLACE_APP_DB_PASSWORD"
+      securityContext:
+        allowPrivilegeEscalation: false
+        # NOT runAsNonRoot / drop-ALL: the postgres entrypoint starts as root to
+        # own the data dir, then su-execs to the postgres user. Keep only the
+        # capabilities that requires; drop the rest.
+        capabilities:
+          drop: ["ALL"]
+          add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+      volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+    # ── API — no hostPort → reachable only by `web` on 127.0.0.1 ──
+    - name: api
+      image: ghcr.io/chrismagill/attestor-api@sha256:df69903ef1b70df69205cc6d6e9371296c438bbed496edfbdb98f656eb53bf2d
+      env:
+        - name: ATTESTOR_STORAGE_BACKEND
+          value: "postgres"
+        - name: ATTESTOR_DATA_DIR
+          value: "/data/attestor"
+        - name: DATABASE_URL            # 127.0.0.1 (shared Pod netns), attestor_app role
+          value: "postgresql://attestor_app:REPLACE_APP_DB_PASSWORD@127.0.0.1:5432/attestor"
+        - name: APP_DB_PASSWORD
+          value: "REPLACE_APP_DB_PASSWORD"
+        - name: POSTGRES_PASSWORD       # required by the API config gate
+          value: "REPLACE_POSTGRES_PASSWORD"
+        - name: JWT_SECRET
+          value: "REPLACE_JWT_SECRET_64_HEX"
+        - name: ENCRYPTION_KEY
+          value: "REPLACE_ENCRYPTION_KEY_64_HEX"
+        - name: EVIDENCE_SIGNING_KEY
+          value: "REPLACE_EVIDENCE_SIGNING_KEY_64_HEX"
+        - name: LICENSE_KEY
+          value: "REPLACE_ATTESTOR_LICENSE_KEY"
+        - name: NODE_ENV
+          value: "production"
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        # readOnlyRootFilesystem: true  # optional: add an emptyDir for any writable
+        #   path the API needs (e.g. /tmp) and validate before enabling.
+      volumeMounts:
+        - name: attestor-data
+          mountPath: /data/attestor
+    # ── Web (nginx) — the ONLY host-exposed service ──
+    - name: web
+      image: ghcr.io/chrismagill/attestor-web@sha256:847bf170ceab1baf9af4865558e9de48524699101ae091c115a8c5dc882d5182
+      env:
+        - name: ATTESTOR_STORAGE_BACKEND
+          value: "postgres"
+        - name: ATTESTOR_DATA_DIR
+          value: "/data/attestor"
+        - name: ATTESTOR_API_URL        # 127.0.0.1 (shared Pod netns)
+          value: "http://127.0.0.1:3001"
+        - name: ATTESTOR_ENV
+          value: "production"
+      ports:
+        - containerPort: 8080
+          hostPort: 8080
+      securityContext:
+        runAsNonRoot: true              # nginx runs as an unprivileged uid; 8080 > 1024 → no NET_BIND_SERVICE
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: attestor-data
+          mountPath: /data/attestor
+  volumes:
+    - name: pgdata
+      persistentVolumeClaim:
+        claimName: attestor-pgdata
+    - name: attestor-data
+      persistentVolumeClaim:
+        claimName: attestor-data

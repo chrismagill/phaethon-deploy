@@ -68,6 +68,11 @@ cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
 - **Ports >1024** (8088) — no privileged-port workaround needed for rootless.
 - Ordinance is a **single service** (no `depends_on`), so it works with any
   `podman-compose` version.
-- Prefer a fully native path? `podman kube play` accepts a Kubernetes YAML where
-  you can pin `securityContext` (`seccompProfile: RuntimeDefault`,
-  `seLinuxOptions`, `readOnlyRootFilesystem`, `runAsNonRoot`) explicitly.
+- **Native path (recommended for the hardening story):** `ordinance.kube.yaml`
+  in this folder is a `podman kube play` Pod spec with an explicit
+  `securityContext` (seccomp RuntimeDefault, non-root, no privilege escalation,
+  all caps dropped, read-only rootfs) a C3PAO can read directly:
+  ```bash
+  podman kube play ordinance.kube.yaml    # up
+  podman kube down ordinance.kube.yaml    # down
+  ```

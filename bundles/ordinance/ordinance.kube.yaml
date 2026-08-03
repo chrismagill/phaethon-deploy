@@ -1,0 +1,62 @@
+# Ordinance — rootless `podman kube play` deployment (SELinux-friendly, hardened)
+# ------------------------------------------------------------------------------
+# Run:    podman kube play ordinance.kube.yaml
+# Stop:   podman kube down ordinance.kube.yaml
+# Console http://localhost:8088/   ·   Health: curl http://localhost:8088/health
+#
+# This is the "native" Podman path. Unlike the Compose file it declares an
+# explicit securityContext — seccomp RuntimeDefault, non-root, no privilege
+# escalation, all capabilities dropped, read-only root filesystem — that a C3PAO
+# can read directly and map to NIST SP 800-190 / CIS. See
+# ../../CONTAINER-RUNTIME-ISOLATION.md.
+#
+# VALIDATE ONCE in your RHEL environment before production. The read-only-rootfs
+# + emptyDir set is conservative but app-specific; if the app needs another
+# writable path, add an emptyDir mount (or drop readOnlyRootFilesystem).
+#
+# SECRETS: replace the placeholder ORDINANCE_API_KEY, or externalize it — a
+# Kubernetes Secret in this file (secretKeyRef) or `podman kube play --configmap`.
+# Do NOT commit a real key.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ordinance
+  labels:
+    app: ordinance
+spec:
+  restartPolicy: Always
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: ordinance
+      image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+      ports:
+        - containerPort: 8080
+          hostPort: 8088
+      env:
+        - name: ORDINANCE_ACCEPT_TERMS    # fail-closed; you, the operator, accept the Terms of Use
+          value: "1"
+        - name: ORDINANCE_EVAL            # keyless trial; delete this and set LICENSE_KEY for production
+          value: "1"
+        - name: ORDINANCE_API_KEY         # REPLACE — shared secret for the console + the X-Api-Key header
+          value: "REPLACE-WITH-A-STRONG-KEY"
+        - name: ORDINANCE_DEFAULT_DECISION
+          value: "escalate"
+      securityContext:
+        runAsNonRoot: true                # the image declares a non-root USER
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true      # SQLite/state live on the volume below; /tmp is an emptyDir
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: ordinance-data
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: ordinance-data
+      persistentVolumeClaim:
+        claimName: ordinance-data       # podman creates this as a named volume on first play
+    - name: tmp
+      emptyDir: {}
