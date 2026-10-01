@@ -45,7 +45,7 @@ Unzip the bundle if you haven't, then `cd` into it. For example, if it unzipped
 to your Downloads folder:
 
 ```powershell
-cd $HOME\Downloads\attestor
+cd $HOME\Downloads\attestor-trial
 ```
 
 Run `dir` — you should see `docker-compose.yml`.

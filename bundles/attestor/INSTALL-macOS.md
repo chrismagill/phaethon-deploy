@@ -39,7 +39,7 @@ Unzip the bundle if you haven't, then `cd` into it. For example, if it's in
 Downloads:
 
 ```bash
-cd ~/Downloads/attestor
+cd ~/Downloads/attestor-trial
 ```
 
 You should see `docker-compose.yml` when you run `ls`.
