@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Terminal</title>
+<style>
+  :root { --bg:#0f1419; --fg:#d7dde4; --dim:#7d8a96; --green:#7ee787; --blue:#79c0ff; --amber:#e3b341; }
+  html,body { margin:0; height:100%; background: radial-gradient(1200px 700px at 20% 10%, #24324a, #0b0f17 70%); font-family: -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  .win { position:absolute; left:48px; right:48px; top:34px; bottom:118px; background:var(--bg); border-radius:10px;
+         box-shadow:0 20px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); display:flex; flex-direction:column; overflow:hidden; }
+  .bar { height:34px; display:flex; align-items:center; gap:8px; padding:0 14px; background:#1b222b; color:var(--dim); font-size:13px; }
+  .dot { width:12px; height:12px; border-radius:50%; } .r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+  .title { flex:1; text-align:center; margin-right:52px; }
+  #out { flex:1; margin:0; padding:14px 18px; color:var(--fg); font:15px/1.45 "Cascadia Mono", Consolas, "SF Mono", monospace;
+         white-space:pre-wrap; word-break:break-all; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; }
+  .ps { color:var(--green); } .cmt { color:var(--dim); } .cur { display:inline-block; width:9px; height:18px; background:var(--fg); vertical-align:-3px; animation:b 1s steps(1) infinite; }
+  @keyframes b { 50% { opacity:0 } }
+  /* editor */
+  .ed { position:absolute; left:140px; right:140px; top:70px; bottom:150px; background:#fbfbfa; border-radius:10px; display:none; flex-direction:column;
+        box-shadow:0 24px 70px rgba(0,0,0,.6); overflow:hidden; }
+  .ed .bar { background:#e9e9e7; color:#555; }
+  .ed pre { flex:1; margin:0; padding:16px 20px; font:15px/1.5 "Cascadia Mono", Consolas, monospace; color:#222; white-space:pre-wrap; overflow:hidden; }
+  .ed .hl { background:#fff3c4; }
+</style></head>
+<body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title" id="ttl">Terminal</span></div><pre id="out"></pre></div>
+<div class="ed" id="ed"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title" id="edttl">.env</span></div><pre id="edbody"></pre></div>
+<script>
+const out = document.getElementById('out');
+const params = new URLSearchParams(location.search);
+let PROMPT = params.get('prompt') || '~ $ ';
+document.getElementById('ttl').textContent = params.get('title') || 'Terminal';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let cur;
+function trim() { while (out.childNodes.length > 400) out.removeChild(out.firstChild); }
+function add(text, cls) { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; out.insertBefore(s, cur); trim(); return s; }
+function promptLine() { add(PROMPT, 'ps'); }
+cur = document.createElement('span'); cur.className = 'cur'; out.appendChild(cur);
+promptLine();
+
+window.T = {
+  setPrompt(p) { PROMPT = p; },
+  async type(text, speed = 38) {
+    const s = add('');
+    for (const ch of text) { s.textContent += ch; await sleep(ch === '\n' ? 140 : speed + Math.random() * 25); }
+  },
+  // Type a command, then really run it; resolves with the exit code.
+  async run(cmd, { display, speed, hold = 600, filter } = {}) {
+    await this.type(display ?? cmd, speed);
+    await sleep(350); add('\n');
+    const r = await fetch('/run', { method: 'POST', body: JSON.stringify({ cmd }) });
+    const rd = r.body.getReader(); const dec = new TextDecoder(); let code = null, last = '\n', all = '';
+    for (;;) {
+      const { value, done } = await rd.read(); if (done) break;
+      let t = dec.decode(value, { stream: true });
+      const z = t.indexOf('\u0000'); if (z >= 0) { code = Number(t.slice(z + 1)); t = t.slice(0, z); }
+      t = t.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      if (filter) t = filter(t);
+      if (t) { add(t); last = t.slice(-1); all += t; }
+    }
+    if (last !== '\n') add('\n');
+    window.__lastOutput = all;
+    await sleep(hold); promptLine(); return code;
+  },
+  async comment(text) { await this.type(text, 22); add('\n'); promptLine(); },
+  clear() { out.innerHTML = ''; out.appendChild(cur); promptLine(); },
+  async openEditor(title) {
+    document.getElementById('edttl').textContent = title;
+    const lines = await (await fetch('/env')).json();
+    const pre = document.getElementById('edbody'); pre.innerHTML = '';
+    for (const l of lines) { const d = document.createElement('div'); d.textContent = l || ' '; pre.appendChild(d); }
+    document.getElementById('ed').style.display = 'flex';
+  },
+  // Visually type `shown` after KEY= in the editor, and save the real value to .env.
+  async editorSet(key, shown, real) {
+    const pre = document.getElementById('edbody');
+    const row = [...pre.children].find((d) => new RegExp(`^#?\\s*${key}=`).test(d.textContent));
+    row.classList.add('hl'); row.scrollIntoView({ block: 'center' }); await sleep(900);
+    if (!row.textContent.startsWith(key + '=')) {           // commented out: delete the "# " first
+      while (!row.textContent.startsWith(key)) { row.textContent = row.textContent.slice(1); await sleep(160); }
+      row.textContent = key + '='; await sleep(300);
+    }
+    for (const ch of shown) { row.textContent += ch; await sleep(shown.length > 20 ? 14 : 120); }
+    await fetch('/setenv', { method: 'POST', body: JSON.stringify({ key, value: real }) });
+    document.getElementById('edttl').textContent += '  —  Saved';
+  },
+  closeEditor() { document.getElementById('ed').style.display = 'none'; },
+};
+</script></body></html>
