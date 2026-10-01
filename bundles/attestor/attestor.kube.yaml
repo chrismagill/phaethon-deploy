@@ -38,7 +38,7 @@ spec:
   containers:
     # ── PostgreSQL — no hostPort → not reachable from the host ──
     - name: postgres
-      image: ghcr.io/chrismagill/attestor-postgres@sha256:aa1f2efa0392189e1f498d9bd28ef64966530ba9f336e73e429ef9858a24459f
+      image: ghcr.io/chrismagill/attestor-postgres@sha256:2f3a2293f2ec6e3e2e7b2bb7f7e0da7816fcdbebd4c762afc9956d812742dc2c
       env:
         - name: POSTGRES_USER
           value: "attestor"
@@ -61,7 +61,7 @@ spec:
           mountPath: /var/lib/postgresql/data
     # ── API — no hostPort → reachable only by `web` on 127.0.0.1 ──
     - name: api
-      image: ghcr.io/chrismagill/attestor-api@sha256:df69903ef1b70df69205cc6d6e9371296c438bbed496edfbdb98f656eb53bf2d
+      image: ghcr.io/chrismagill/attestor-api@sha256:329a2887424107d782bb51cbfd90a0636ada76575176d1dea9b3ca9a69bf0ffd
       env:
         - name: ATTESTOR_STORAGE_BACKEND
           value: "postgres"
@@ -95,7 +95,7 @@ spec:
           mountPath: /data/attestor
     # ── Web (nginx) — the ONLY host-exposed service ──
     - name: web
-      image: ghcr.io/chrismagill/attestor-web@sha256:847bf170ceab1baf9af4865558e9de48524699101ae091c115a8c5dc882d5182
+      image: ghcr.io/chrismagill/attestor-web@sha256:08dc6003a2f618b128843faec7557db6d9bb58083db44b8330d1d60dd922c5e6
       env:
         - name: ATTESTOR_STORAGE_BACKEND
           value: "postgres"
