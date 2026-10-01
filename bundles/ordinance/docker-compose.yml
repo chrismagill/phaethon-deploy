@@ -51,8 +51,9 @@ services:
       # set LICENSE_KEY below.
       ORDINANCE_EVAL: ${ORDINANCE_EVAL:-1}
       LICENSE_KEY: ${LICENSE_KEY:-}
-      # Shared secret: sign in to the console with it, and send it as the
-      # X-Api-Key header from your callers. Change it for anything beyond a
+      # Shared secret your callers send as the X-Api-Key header on /v1/evaluate.
+      # (The browser console uses the operator account you create on first run,
+      # with mandatory MFA, not this key.) Change it for anything beyond a
       # local trial (set ORDINANCE_API_KEY in .env).
       ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:-ordinance-trial-key}
       ORDINANCE_DEFAULT_DECISION: ${ORDINANCE_DEFAULT_DECISION:-escalate}

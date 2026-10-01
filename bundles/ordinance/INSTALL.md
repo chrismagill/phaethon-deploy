@@ -71,12 +71,19 @@ trial self-issues a short-lived evaluation license.
 
 ## 4. Open the console
 
-Visit **<http://localhost:8088/>** in your browser and sign in with the trial
-API key:
+Visit **<http://localhost:8088/>** in your browser. On first run you'll see
+**Create the operator account**:
 
-```
-ordinance-trial-key
-```
+1. Choose a username and a password (at least 10 characters), then click
+   **Create account**. This is the person who signs in to the console.
+2. Sign in with them. You'll be **required to set up two-factor
+   authentication**: add the secret shown to an authenticator app (Microsoft
+   Authenticator, Google Authenticator, 1Password, …), enter the current 6-digit
+   code, and click **Confirm & sign in**. After that, every sign-in asks for the
+   password and a code.
+
+> The console sign-in is separate from the **API key** (`ordinance-trial-key` by
+> default). The API key is only for programs calling `/v1/evaluate` — see step 5.
 
 You'll land on a dashboard with:
 
@@ -85,8 +92,8 @@ You'll land on a dashboard with:
   (decision-log CSV, a control-coverage matrix, or a zip).
 - **Policies** — the loaded rules, and a "what would this action require?" lookup.
 
-> Change the key for anything beyond a local trial: set `ORDINANCE_API_KEY` in a
-> `.env` file (copy `.env.example`) and `docker compose up -d` again.
+> Change the API key for anything beyond a local trial: set `ORDINANCE_API_KEY`
+> in `.env` and `docker compose up -d` again.
 
 ## 5. Make some decisions (optional, via API)
 
@@ -152,8 +159,14 @@ For a licensed deployment: in `.env`, comment out `ORDINANCE_EVAL`, set your
 
 - **Port already in use.** Set `ORDINANCE_HOST_PORT` in `.env` to a free port and
   `docker compose up -d` again.
-- **`401` on API calls / can't sign in.** Your key doesn't match
-  `ORDINANCE_API_KEY` (default `ordinance-trial-key`).
+- **`401` on API calls.** Your `X-Api-Key` doesn't match `ORDINANCE_API_KEY`
+  (default `ordinance-trial-key`).
+- **Can't sign in to the console.** The console uses the operator account you
+  created on first run (username + password + authenticator code), not the API
+  key. There is no password reset in the trial. To start over, run
+  `docker compose down -v` (erases all data, including the decision log) and
+  `docker compose up -d`. You'll get the **Create the operator account** screen
+  again.
 - **Container keeps restarting.** `docker compose logs` — the reason is printed.
 
 ---

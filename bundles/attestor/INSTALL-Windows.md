@@ -176,15 +176,21 @@ For a real deployment (not local evaluation):
 
 1. **Turn off self-service setup.** The browser "create your account" screen is
    an evaluation convenience. In production set `ATTESTOR_SETUP_ENABLED=false` in
-   `.env` and create the first admin from the command line instead:
+   `.env` and create the first admin from the command line instead. Then load the
+   NIST 800-171 / CMMC control mappings (the browser screen does this for you; on
+   the command line it's a second step — without it, events aren't tagged):
    ```powershell
    # load POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB from .env
    Get-Content .env | Where-Object { $_ -match '^(POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB)=' } |
      ForEach-Object { $k,$v = $_.Split('=',2); Set-Item "env:$k" $v }
-   docker compose exec -T `
-     -e ADMIN_DATABASE_URL="postgresql://$($env:POSTGRES_USER):$($env:POSTGRES_PASSWORD)@postgres:5432/$($env:POSTGRES_DB)" `
-     api node scripts/create-user.js --email you@company.com `
+   $DB = "postgresql://$($env:POSTGRES_USER):$($env:POSTGRES_PASSWORD)@postgres:5432/$($env:POSTGRES_DB)"
+
+   docker compose exec -T -e ADMIN_DATABASE_URL="$DB" `
+     api node api/scripts/create-user.js --email you@company.com `
      --password 'a-strong-passphrase' --role admin --org-name "Your Company"
+
+   docker compose exec -T -e ADMIN_DATABASE_URL="$DB" `
+     api node api/scripts/seed-mappings.js --all
    ```
 2. Put Attestor behind a hostname with a **real TLS certificate** — run a reverse
    proxy (Caddy, nginx, or a Cloudflare Tunnel) in front of port 8080 to
