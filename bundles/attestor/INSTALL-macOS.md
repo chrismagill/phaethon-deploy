@@ -157,21 +157,27 @@ For a real deployment (not local evaluation):
 
 1. **Turn off self-service setup.** The browser "create your account" screen is
    an evaluation convenience. In production set `ATTESTOR_SETUP_ENABLED=false`
-   and create the first admin from the command line instead:
+   and create the first admin from the command line instead. Then load the
+   NIST 800-171 / CMMC control mappings (the browser screen does this for you;
+   on the command line it's a second step — without it, events aren't tagged):
    ```bash
    set -a; source .env; set +a
-   docker compose exec -T \
-     -e ADMIN_DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}" \
-     api node scripts/create-user.js --email you@company.com \
+   DB="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+
+   docker compose exec -T -e ADMIN_DATABASE_URL="$DB" \
+     api node api/scripts/create-user.js --email you@company.com \
      --password 'a-strong-passphrase' --role admin --org-name "Your Company"
+
+   docker compose exec -T -e ADMIN_DATABASE_URL="$DB" \
+     api node api/scripts/seed-mappings.js --all
    ```
 2. Put Attestor behind a hostname with a **real TLS certificate** — run a
    reverse proxy (Caddy, nginx, or a Cloudflare Tunnel) in front of port 8080 to
    terminate HTTPS. Evaluation runs over plain HTTP on loopback.
-2. Keep `.env` backed up securely — it holds the keys that encrypt your data and
+3. Keep `.env` backed up securely — it holds the keys that encrypt your data and
    sign your evidence bundles. If you lose `ENCRYPTION_KEY`, existing data can't
    be decrypted.
-3. Renew your license before it expires. After expiry Attestor keeps running for
+4. Renew your license before it expires. After expiry Attestor keeps running for
    a grace period (default 14 days, with a warning) and then stops.
 
 ---

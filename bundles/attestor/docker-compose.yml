@@ -63,7 +63,7 @@ services:
       LICENSE_GRACE_PERIOD_DAYS: ${LICENSE_GRACE_PERIOD_DAYS:-14}
       # Lets you create the first admin + load the CMMC/800-171 controls from the
       # browser (no CLI). One-shot: inert once an admin exists. Set to false for a
-      # production deployment and bootstrap the admin with scripts/create-user.js.
+      # production deployment and bootstrap the admin with api/scripts/create-user.js.
       ATTESTOR_SETUP_ENABLED: ${ATTESTOR_SETUP_ENABLED:-true}
       NODE_ENV: production
     volumes:
