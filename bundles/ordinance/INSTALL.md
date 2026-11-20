@@ -74,10 +74,11 @@ curl http://localhost:8088/health
 
 ## 4. Create your operator account
 
-1. Get the one-time setup code from the log:
+1. Get the one-time setup code from the log — look for the line
+   `CONSOLE SETUP CODE: …`:
 
    ```bash
-   docker compose logs ordinance | grep "SETUP CODE"
+   docker compose logs ordinance
    ```
 
 2. Open **<http://localhost:8088/>**. On **Create the operator account**, enter
@@ -96,6 +97,10 @@ The console has four areas: **Overview**, **Approvals** (the human gate),
 ## 5. Make three decisions
 
 Every request must say **who is asking**: `subject.id` is required.
+
+> **Windows:** these examples are written for a bash shell. Run them in Git Bash
+> or WSL — in Windows PowerShell, `curl` is a different command and the quoting
+> differs. Or skip to step 7: the proof battery makes the same calls for you.
 
 ```bash
 KEY=<the ORDINANCE_API_KEY from your .env>

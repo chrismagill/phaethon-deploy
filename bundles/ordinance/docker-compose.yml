@@ -63,7 +63,7 @@ services:
       # The baseline API key — REQUIRED, and deliberately has no default: a
       # published default key is no key. Generate one (see .env.example).
       # Callers send it as the X-Api-Key header; it is recorded as "key:default".
-      ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:?set ORDINANCE_API_KEY in .env — generate one with: openssl rand -hex 32}
+      ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:?set ORDINANCE_API_KEY in .env — generate one with openssl rand -hex 32}
       # One named key per calling system or agent (name=key,name2=key2), so the
       # ledger records WHICH integration asked. And which of those names may
       # resolve approvals by API — leave empty and only signed-in console
