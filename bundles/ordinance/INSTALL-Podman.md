@@ -64,7 +64,7 @@ systemctl --user daemon-reload && systemctl --user enable --now container-phaeth
 ## Cosign-verify before first run (supply-chain)
 
 ```bash
-cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
+cosign verify ghcr.io/chrismagill/ordinance@sha256:3b44248e... \
   --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

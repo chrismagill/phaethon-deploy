@@ -36,7 +36,7 @@ spec:
       type: RuntimeDefault
   containers:
     - name: ordinance
-      image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+      image: ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd
       ports:
         - containerPort: 8080
           hostPort: 8088

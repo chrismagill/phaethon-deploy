@@ -36,7 +36,7 @@ cosign() { docker run --rm gcr.io/projectsigstore/cosign:v2.4.1 "$@"; }
 
 ```sh
 cosign verify \
-  ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da \
+  ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd \
   --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
 ```
@@ -57,7 +57,7 @@ done
 ### What a good result looks like
 
 ```
-Verification for ghcr.io/chrismagill/ordinance@sha256:79384b79... --
+Verification for ghcr.io/chrismagill/ordinance@sha256:3b44248e... --
 The following checks were performed on each of these signatures:
   - The cosign claims were validated
   - Existence of the claims in the transparency log was verified offline
@@ -68,10 +68,10 @@ Followed by a JSON block whose `Subject` names the workflow, commit, and tag tha
 the image — for the digest above:
 
 ```
-"Subject":  "https://github.com/chrismagill/ordinance/.github/workflows/release.yml@refs/tags/v3.3.0"
+"Subject":  "https://github.com/chrismagill/ordinance/.github/workflows/release.yml@refs/tags/v4.0.0"
 "Issuer":   "https://token.actions.githubusercontent.com"
-"githubWorkflowSha":  "290bd1d82f684f08b576f0c78a28943d2daa6487"
-"githubWorkflowRef":  "refs/tags/v3.3.0"
+"githubWorkflowSha":  "5944593fa80ad510c65c6677cef986080fb8c030"
+"githubWorkflowRef":  "refs/tags/v4.0.0"
 ```
 
 If verification **fails**, the command exits non-zero and prints
@@ -104,16 +104,16 @@ Each image carries a full SPDX software bill of materials, attached at build tim
 ```sh
 # The whole SBOM (per-platform):
 docker buildx imagetools inspect \
-  ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da \
+  ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd \
   --format '{{ json .SBOM }}'
 
 # Just the package list for one architecture:
 docker buildx imagetools inspect \
-  ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da \
+  ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd \
   --format '{{ json (index .SBOM "linux/amd64").SPDX.packages }}'
 ```
 
-The Ordinance `3.3.0` SBOM lists **111 packages** (Python runtime plus fastapi, uvicorn,
+The Ordinance `4.0.0` SBOM lists **111 packages** (Python runtime plus fastapi, uvicorn,
 pydantic, cryptography, PyYAML, and their transitive dependencies).
 
 > **Note:** the SBOM is a **buildx attestation** attached to the image index. Retrieve it
@@ -131,7 +131,7 @@ at build time from what actually shipped:
 ```sh
 # Ordinance:
 docker run --rm --entrypoint sh \
-  ghcr.io/chrismagill/ordinance@sha256:79384b79... -c 'cat /srv/NOTICE'
+  ghcr.io/chrismagill/ordinance@sha256:3b44248e... -c 'cat /srv/NOTICE'
 
 # Attestor API:
 docker run --rm --entrypoint sh \
@@ -163,7 +163,7 @@ provide them per release.
 
 | Image | Version | Digest |
 |---|---|---|
-| `ghcr.io/chrismagill/ordinance` | 3.3.0 | `sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da` |
+| `ghcr.io/chrismagill/ordinance` | 4.0.0 | `sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd` |
 | `ghcr.io/chrismagill/attestor-api` | 1.1.3 | `sha256:f95b4876f1c7c66a5db781cdd606d63b47f2fe1391378cd2df283f3eecd869f4` |
 | `ghcr.io/chrismagill/attestor-web` | 1.1.3 | `sha256:66899ab5a84383263ee72960b0e404ffb112f1ed9a3a0d72ac56d646c2b075f7` |
 | `ghcr.io/chrismagill/attestor-postgres` | 1.1.3 | `sha256:bcad87b8e13e35235318574bc939c9f7427e953e0203ed8f1daf6b49e396c8eb` |

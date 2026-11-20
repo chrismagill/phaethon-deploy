@@ -26,17 +26,17 @@ services:
   ordinance:
     # Pinned by DIGEST, not by tag. Tags are mutable — a tag can be repointed at a
     # different image, so a tag cannot tell you months later what you actually ran.
-    # This digest is Ordinance 3.3.0 and can never mean anything else.
+    # This digest is Ordinance 4.0.0 and can never mean anything else.
     #
     # SIGNED (cosign, keyless via GitHub Actions OIDC). Verify before you run it:
-    #   cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
+    #   cosign verify ghcr.io/chrismagill/ordinance@sha256:3b44248e... \
     #     --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
     #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
     #
     # UPGRADING: because of the pin, `docker compose pull` alone never changes
     # what runs. To move to a new release, replace this line with the digest from
     # the new bundle (or download the new bundle), then `docker compose up -d`.
-    image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+    image: ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd
     container_name: phaethon-ordinance
     restart: unless-stopped
     ports:
