@@ -18,11 +18,12 @@ podman info | grep -i rootless   # rootless: true  (run as an unprivileged user,
 ## Configure
 
 ```bash
-cp .env.example .env 2>/dev/null || true   # if present; otherwise set inline below
-# Required: accept the Terms of Use (fail-closed). Keyless trial needs no license.
-#   ORDINANCE_ACCEPT_TERMS=1
-#   ORDINANCE_EVAL=1                 # self-issued eval license; omit + set LICENSE_KEY for prod
-#   ORDINANCE_API_KEY=<openssl rand -hex 32>   # change from the trial default
+cp .env.example .env && chmod 600 .env
+# Two values are REQUIRED in .env (the service fails closed without them):
+#   ORDINANCE_ACCEPT_TERMS=1                     # after reading the Terms of Use
+#   ORDINANCE_API_KEY=<openssl rand -hex 32>     # there is no default key
+# Keyless trial needs no license (ORDINANCE_EVAL=1). For production set
+# ORDINANCE_EVAL= (empty) and LICENSE_KEY — see PRODUCTION.md.
 ```
 
 ## Run (rootless)
@@ -31,6 +32,11 @@ cp .env.example .env 2>/dev/null || true   # if present; otherwise set inline be
 podman-compose up -d
 ```
 Console: `http://localhost:8088/`  ·  Health: `curl http://localhost:8088/health`
+
+First-run console setup needs the one-time code from the log:
+`podman logs phaethon-ordinance 2>&1 | grep "SETUP CODE"`. Then continue from
+step 4 of [INSTALL.md](INSTALL.md); the `docker compose exec …` commands in
+[PRODUCTION.md](PRODUCTION.md) become `podman exec phaethon-ordinance …`.
 
 The image is baked with the reference policy bundle; `/health` should report
 `policies_loaded ≥ 1` and (in trial) `"status":"evaluation"`.
