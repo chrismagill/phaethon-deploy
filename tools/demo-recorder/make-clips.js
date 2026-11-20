@@ -22,9 +22,10 @@ const CLIPS = [
     kicker: 'Attestor', head: 'Assessor-ready evidence,<br>signed and verifiable', cta: 'Try Attestor', url: '/attestor/trial' },
   { id: 'attestor-control-mapping', src: 'Attestor-2-Overview.mp4', from: 55, to: 69, speed: 1,
     kicker: 'Attestor', head: 'Every log event mapped to<br>NIST 800-171 &amp; CMMC controls', cta: 'Try Attestor', url: '/attestor/trial' },
-  { id: 'ordinance-allow-deny-escalate', src: 'Ordinance-2-Overview.mp4', from: 6, to: 45, speed: 1.5,
+  // Cut points are for the Ordinance 4.0 overview; re-check them after any re-record.
+  { id: 'ordinance-allow-deny-escalate', src: 'Ordinance-2-Overview.mp4', from: 10, to: 63, speed: 1.75,
     kicker: 'Ordinance', head: 'Allow. Deny. Escalate.<br>Before the action happens.', cta: 'Try Ordinance free', url: '/ordinance/trial' },
-  { id: 'ordinance-human-approval', src: 'Ordinance-2-Overview.mp4', from: 66, to: 96, speed: 1.25,
+  { id: 'ordinance-human-approval', src: 'Ordinance-2-Overview.mp4', from: 80, to: 107, speed: 1.25,
     kicker: 'Ordinance', head: 'A human in the loop<br>for risky actions', cta: 'Try Ordinance free', url: '/ordinance/trial' },
   { id: 'attestor-install-timelapse', src: 'Attestor-1-Installation.mp4', from: 5, to: 145, speed: 6,
     kicker: 'Attestor', head: 'Self-hosted, installed in<br>about two minutes', cta: 'Try Attestor', url: '/attestor/trial', badge: '6× speed' },
@@ -57,7 +58,9 @@ const frameHtml = (c, f) => `<!doctype html><html><head><meta charset="utf-8"><s
   const browser = await chromium.launch();
   const page = await browser.newPage({ deviceScaleFactor: 1 });
 
-  for (const c of CLIPS) {
+  // CLIPS_ONLY=<text> renders only the clips whose id contains it (e.g. CLIPS_ONLY=ordinance).
+  const only = process.env.CLIPS_ONLY;
+  for (const c of CLIPS.filter((c) => !only || c.id.includes(only))) {
     for (const [fmt, f] of Object.entries(FORMATS)) {
       await page.setViewportSize({ width: f.w, height: f.h });
       await page.setContent(frameHtml(c, f));
