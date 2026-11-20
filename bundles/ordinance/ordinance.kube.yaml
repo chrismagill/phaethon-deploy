@@ -14,6 +14,12 @@
 # + emptyDir set is conservative but app-specific; if the app needs another
 # writable path, add an emptyDir mount (or drop readOnlyRootFilesystem).
 #
+# NETWORK: the container speaks plain HTTP. Do not expose hostPort 8088 beyond
+# this host — front it with a TLS reverse proxy (PRODUCTION.md, "TLS").
+#
+# CONSOLE: first-run setup needs the one-time code printed in the pod log
+# (podman logs ordinance-ordinance | grep "SETUP CODE").
+#
 # SECRETS: replace the placeholder ORDINANCE_API_KEY, or externalize it — a
 # Kubernetes Secret in this file (secretKeyRef) or `podman kube play --configmap`.
 # Do NOT commit a real key.
@@ -30,7 +36,7 @@ spec:
       type: RuntimeDefault
   containers:
     - name: ordinance
-      image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+      image: ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd
       ports:
         - containerPort: 8080
           hostPort: 8088
@@ -39,7 +45,7 @@ spec:
           value: "1"
         - name: ORDINANCE_EVAL            # keyless trial; delete this and set LICENSE_KEY for production
           value: "1"
-        - name: ORDINANCE_API_KEY         # REPLACE — shared secret for the console + the X-Api-Key header
+        - name: ORDINANCE_API_KEY         # REPLACE — callers send this as X-Api-Key (the console uses operator sign-in)
           value: "REPLACE-WITH-A-STRONG-KEY"
         - name: ORDINANCE_DEFAULT_DECISION
           value: "escalate"

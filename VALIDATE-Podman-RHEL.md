@@ -29,7 +29,7 @@ podman-compose --version           # >= 1.0.6 (only needed for the Compose path)
 ```bash
 # Each image is cosign-signed (keyless, GitHub OIDC). Verify by the exact digest
 # pinned in the bundle compose / kube YAML, e.g. Ordinance:
-cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
+cosign verify ghcr.io/chrismagill/ordinance@sha256:3b44248e... \
   --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

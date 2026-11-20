@@ -1,24 +1,23 @@
 # =============================================================
-# Ordinance — Evaluation Deployment (keyless trial)
+# Ordinance — deployment (evaluation by default)
 # =============================================================
 # Pulls a prebuilt image from GitHub Container Registry. The reference policy
-# bundle and the web console are baked into the image — nothing to build, and
-# for evaluation, NO license key is required.
+# bundle, the web console, the enforcement client and the proof battery are
+# baked into the image — nothing to build.
 #
 # You need:
-#   1. Docker Desktop (running) — Mac or Windows
+#   1. Docker Desktop (running) — Mac or Windows — or Docker Engine / Podman
+#   2. A .env file next to this one (copy .env.example) with two lines set:
+#        ORDINANCE_ACCEPT_TERMS=1
+#        ORDINANCE_API_KEY=<a key you generate>
 #
-# Then:  docker compose up -d
-# Console:  http://localhost:8088/
-# Health:   curl http://localhost:8088/health
+# Then:      docker compose up -d
+# Console:   http://localhost:8088/     (setup code: docker compose logs ordinance)
+# Health:    curl http://localhost:8088/health
 #
-# NOTE on the port: Ordinance publishes on host port 8088 by default so it does
-# NOT collide with Attestor (8080/8443) if you run both. Change
-# ORDINANCE_HOST_PORT in .env to use a different port.
-#
-# For PRODUCTION: remove ORDINANCE_EVAL and set a real LICENSE_KEY (see
-# .env.example). Evaluation mode self-issues a short-lived local license and
-# prints an "EVALUATION MODE" banner — it is not for production use.
+# INSTALL.md walks through a first run. PRODUCTION.md covers TLS, keys,
+# operators, policy changes, backup and upgrades. INTEGRATION.md covers calling
+# Ordinance from your systems and agents.
 # =============================================================
 
 name: ordinance
@@ -27,17 +26,26 @@ services:
   ordinance:
     # Pinned by DIGEST, not by tag. Tags are mutable — a tag can be repointed at a
     # different image, so a tag cannot tell you months later what you actually ran.
-    # This digest is Ordinance 3.3.0 and can never mean anything else.
+    # This digest is Ordinance 4.0.0 and can never mean anything else.
     #
     # SIGNED (cosign, keyless via GitHub Actions OIDC). Verify before you run it:
-    #   cosign verify ghcr.io/chrismagill/ordinance@sha256:79384b79... \
+    #   cosign verify ghcr.io/chrismagill/ordinance@sha256:3b44248e... \
     #     --certificate-identity-regexp '^https://github.com/chrismagill/ordinance/' \
     #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
-    image: ghcr.io/chrismagill/ordinance@sha256:79384b793542e5a3449a08cd333de6fdc15b0b21e2c39c8d9b0eb185075ef8da
+    #
+    # UPGRADING: because of the pin, `docker compose pull` alone never changes
+    # what runs. To move to a new release, replace this line with the digest from
+    # the new bundle (or download the new bundle), then `docker compose up -d`.
+    image: ghcr.io/chrismagill/ordinance@sha256:3b44248ecde0feaa38411af6d313a3135f3d9fea13ae15041cffaf7463d98bfd
     container_name: phaethon-ordinance
     restart: unless-stopped
     ports:
-      - "${ORDINANCE_HOST_PORT:-8088}:8080"
+      # Published on THIS MACHINE ONLY by default. The container speaks plain
+      # HTTP, so API keys, console passwords and session tokens would cross the
+      # network unencrypted if it were exposed directly. For other machines to
+      # reach it, put a TLS reverse proxy in front (PRODUCTION.md, "TLS") rather
+      # than changing ORDINANCE_BIND to 0.0.0.0.
+      - "${ORDINANCE_BIND:-127.0.0.1}:${ORDINANCE_HOST_PORT:-8088}:8080"
     environment:
       # Terms of Use acknowledgment — REQUIRED, fail-closed. Ordinance will not
       # start without it. Review the terms at legal/terms_of_use.md in the image
@@ -47,21 +55,33 @@ services:
       # boot log.
       ORDINANCE_ACCEPT_TERMS: ${ORDINANCE_ACCEPT_TERMS:?you must accept the Ordinance Terms of Use — review GET /terms or legal/terms_of_use.md, then set ORDINANCE_ACCEPT_TERMS=1 in .env}
       # Keyless evaluation: self-issues a short-lived license at startup so the
-      # trial runs with no key to obtain. For production, delete this line and
-      # set LICENSE_KEY below.
-      ORDINANCE_EVAL: ${ORDINANCE_EVAL:-1}
+      # trial runs with no license to obtain. For production, set ORDINANCE_EVAL=
+      # (empty) and LICENSE_KEY in .env.
+      ORDINANCE_EVAL: ${ORDINANCE_EVAL-1}
       LICENSE_KEY: ${LICENSE_KEY:-}
-      # Shared secret your callers send as the X-Api-Key header on /v1/evaluate.
-      # (The browser console uses the operator account you create on first run,
-      # with mandatory MFA, not this key.) Change it for anything beyond a
-      # local trial (set ORDINANCE_API_KEY in .env).
-      ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:-ordinance-trial-key}
+      ORDINANCE_LICENSE_GRACE_PERIOD_DAYS: ${ORDINANCE_LICENSE_GRACE_PERIOD_DAYS:-14}
+      # The baseline API key — REQUIRED, and deliberately has no default: a
+      # published default key is no key. Generate one (see .env.example).
+      # Callers send it as the X-Api-Key header; it is recorded as "key:default".
+      ORDINANCE_API_KEY: ${ORDINANCE_API_KEY:?set ORDINANCE_API_KEY in .env — generate one with openssl rand -hex 32}
+      # One named key per calling system or agent (name=key,name2=key2), so the
+      # ledger records WHICH integration asked. And which of those names may
+      # resolve approvals by API — leave empty and only signed-in console
+      # operators can approve.
+      ORDINANCE_API_KEYS: ${ORDINANCE_API_KEYS:-}
+      ORDINANCE_APPROVER_KEYS: ${ORDINANCE_APPROVER_KEYS:-}
+      # First-run console setup needs a one-time code. Leave empty and Ordinance
+      # generates one and prints it in its log (docker compose logs ordinance).
+      ORDINANCE_SETUP_CODE: ${ORDINANCE_SETUP_CODE:-}
       ORDINANCE_DEFAULT_DECISION: ${ORDINANCE_DEFAULT_DECISION:-escalate}
+      ORDINANCE_APPROVAL_TTL_SECONDS: ${ORDINANCE_APPROVAL_TTL_SECONDS:-86400}
     volumes:
+      # The decision ledger, approvals and operator accounts. Back it up
+      # (PRODUCTION.md, "Backup and restore"). `docker compose down -v` DELETES it.
       - ordinance-data:/data
       # To use your OWN policy bundles instead of the built-in reference set,
-      # uncomment the next line and drop *.yaml files in a ./policies folder
-      # next to this file:
+      # uncomment the next line and put *.yaml files in a ./policies folder
+      # next to this file. Validate before every restart (PRODUCTION.md).
       # - ./policies:/srv/policies:ro
     security_opt: ["no-new-privileges:true"]
 
